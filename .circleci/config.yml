@@ -9,11 +9,11 @@ executors:
   android-build:
     working_directory: /home/circleci/project
     docker:
-      - image: circleci/android:api-28-alpha
+      - image: circleci/android:api-29-node
     environment:
       TZ: Asia/Tokyo
-      _JAVA_OPTIONS: -Xmx4g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
-      GRADLE_OPTS: -Xmx4g -Dorg.gradle.daemon=false
+      _JAVA_OPTIONS: -Xmx3g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
+      GRADLE_OPTS: -Xmx3g -Dorg.gradle.daemon=false
   kotlin-jdk8:
     working_directory: /home/circleci/project
     docker:

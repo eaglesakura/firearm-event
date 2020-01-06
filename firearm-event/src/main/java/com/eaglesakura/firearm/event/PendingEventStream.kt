@@ -166,7 +166,6 @@ class PendingEventStream : LiveData<Parcelable> {
     }
 }
 
-
 @Parcelize
 internal data class PendingEvent internal constructor(
     internal val pendingEvents: List<ParcerableEvent>

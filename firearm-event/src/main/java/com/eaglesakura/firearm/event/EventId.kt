@@ -53,6 +53,4 @@ class EventId(private val name: String) : ParcerableEvent {
     override fun hashCode(): Int {
         return name.hashCode()
     }
-
-
 }
