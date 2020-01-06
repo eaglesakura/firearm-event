@@ -1,5 +1,7 @@
 package com.eaglesakura.firearm.event
 
+import kotlinx.android.parcel.Parcelize
+
 /**
  * "EventId" is stream-item for RxStream<Event>(alias to EventStream).
  *
@@ -28,7 +30,8 @@ package com.eaglesakura.firearm.event
  *      }
  * }
  */
-class EventId(private val name: String) : Event {
+@Parcelize
+class EventId(private val name: String) : ParcerableEvent {
     override val id: Any
         get() = name
 
@@ -36,17 +39,20 @@ class EventId(private val name: String) : Event {
         return name
     }
 
-    /**
-     * This instance is only-one.
-     */
-    final override fun equals(other: Any?): Boolean {
-        return super.equals(other)
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as EventId
+
+        if (name != other.name) return false
+
+        return true
     }
 
-    /**
-     * This instance is only-one.
-     */
-    final override fun hashCode(): Int {
-        return super.hashCode()
+    override fun hashCode(): Int {
+        return name.hashCode()
     }
+
+
 }
