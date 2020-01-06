@@ -38,6 +38,12 @@ android {
         exclude 'META-INF/**_debug.kotlin_module'
         pickFirst "META-INF/atomicfu.kotlin_module" // kotlinx.atomicfu
     }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true  // support robolectric
+        }
+    }
 }
 
 dependencies {

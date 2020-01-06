@@ -17,6 +17,6 @@ class EventIdTest {
         assertEquals(id1.toString(), "EVENT")
         assertTrue(id0 == id0)
         assertEquals(id0, id0)
-        assertNotEquals(id0, id1)
+        assertEquals(id0, id1)
     }
 }

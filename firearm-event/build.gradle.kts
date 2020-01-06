@@ -4,6 +4,12 @@ apply(from = "../dsl/bintray.gradle")
 
 dependencies {
     "implementation"("androidx.multidex:multidex:2.0.1")
+    "implementation"("androidx.activity:activity:1.1.0-rc03")
+    "implementation"("androidx.activity:activity-ktx:1.1.0-rc03")
+    "implementation"("androidx.savedstate:savedstate:1.0.0")
+    "implementation"("androidx.annotation:annotation:1.1.0")
+    "implementation"("androidx.appcompat:appcompat:1.1.0")
+    "implementation"("androidx.appcompat:appcompat-resources:1.1.0")
     "implementation"("androidx.arch.core:core-common:2.1.0")
     "implementation"("androidx.arch.core:core-runtime:2.1.0")
     "implementation"("androidx.core:core:1.1.0")
@@ -22,8 +28,6 @@ dependencies {
     "implementation"("androidx.lifecycle:lifecycle-reactivestreams-ktx:2.1.0")
 
     "implementation"("com.eaglesakura.armyknife.armyknife-jetpack:armyknife-jetpack:1.4.3")
-    "api"("com.eaglesakura.armyknife.armyknife-reactivex:armyknife-reactivex:1.3.0") {
-        exclude(group = "com.eaglesakura.armyknife.armyknife-jetpack")
-    }
+    "api"("com.eaglesakura.armyknife.armyknife-reactivex:armyknife-reactivex:1.3.0")
 
 }
