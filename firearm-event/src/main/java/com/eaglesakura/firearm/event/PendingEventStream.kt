@@ -11,6 +11,7 @@ import com.eaglesakura.armyknife.android.extensions.UIHandler
 import com.eaglesakura.armyknife.android.extensions.assertUIThread
 import com.eaglesakura.armyknife.android.extensions.forceActiveAlive
 import com.eaglesakura.armyknife.android.extensions.postOrRun
+import com.eaglesakura.armyknife.android.reactivex.toChannel
 import com.eaglesakura.armyknife.android.reactivex.with
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -18,6 +19,9 @@ import io.reactivex.disposables.Disposable
 import io.reactivex.functions.Consumer
 import io.reactivex.subjects.PublishSubject
 import kotlinx.android.parcel.Parcelize
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 
 /**
  * Event stream with suspend.
@@ -42,10 +46,10 @@ class PendingEventStream {
         // restore data.
         UIHandler.postOrRun {
             pendingEventData.value =
-                when (val saved = savedStateHandle.get<SavedPendingEvent>(savedStateKey)) {
-                    null -> null
-                    else -> PendingEvent(saved)
-                }
+                    when (val saved = savedStateHandle.get<SavedPendingEvent>(savedStateKey)) {
+                        null -> null
+                        else -> PendingEvent(saved)
+                    }
         }
     }
 
@@ -132,6 +136,19 @@ class PendingEventStream {
     }
 
     /**
+     *  Get observable with LifecycleOwner.
+     */
+    @CheckResult
+    @UiThread
+    fun observable(owner: LifecycleOwner): Observable<Event> {
+        assertUIThread()
+        pendingEventData.forceActiveAlive(owner)
+        return requireNotNull(subject) {
+            "Invalid stream state"
+        }
+    }
+
+    /**
      *  Subscribe without Lifecycle.
      *  This function CAN'T close subject.
      */
@@ -147,27 +164,22 @@ class PendingEventStream {
     }
 
     /**
-     *  Get observable with LifecycleOwner.
-     */
-    @CheckResult
-    @UiThread
-    fun observable(owner: LifecycleOwner): Observable<Event> {
-        assertUIThread()
-        pendingEventData.forceActiveAlive(owner)
-        return requireNotNull(subject) {
-            "Invalid stream state"
-        }
-    }
-
-    /**
      *  Subscribe util.
      */
     @UiThread
     fun subscribe(owner: LifecycleOwner, consumer: Consumer<Event>): Disposable {
         return observable(owner)
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe(consumer)
-            .with(owner)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(consumer)
+                .with(owner)
+    }
+
+    /**
+     * Make channel for Testing.
+     */
+    @UiThread
+    fun testChannel(dispatcher: CoroutineDispatcher = Dispatchers.Main): Channel<Event> {
+        return observable().toChannel(dispatcher)
     }
 }
 
@@ -190,7 +202,7 @@ internal data class PendingEvent internal constructor(
      */
     internal fun toParcelable(): SavedPendingEvent {
         return SavedPendingEvent(
-            this.pendingEvents.map { it as ParcerableEvent }
+                this.pendingEvents.map { it as ParcerableEvent }
         )
     }
 }
