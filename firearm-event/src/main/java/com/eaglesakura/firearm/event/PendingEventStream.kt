@@ -5,19 +5,24 @@ import androidx.annotation.CheckResult
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.Observer
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
 import com.eaglesakura.armyknife.android.extensions.UIHandler
 import com.eaglesakura.armyknife.android.extensions.assertUIThread
+import com.eaglesakura.armyknife.android.extensions.forceActiveAlive
+import com.eaglesakura.armyknife.android.extensions.postOrRun
+import com.eaglesakura.armyknife.android.reactivex.with
 import io.reactivex.Observable
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.Disposable
+import io.reactivex.functions.Consumer
 import io.reactivex.subjects.PublishSubject
 import kotlinx.android.parcel.Parcelize
 
 /**
  * Event stream with suspend.
  */
-class PendingEventStream : LiveData<Parcelable> {
+class PendingEventStream {
 
     /**
      *  Stream for ViewModel.
@@ -26,22 +31,31 @@ class PendingEventStream : LiveData<Parcelable> {
         savedStateKey: String,
         savedStateHandle: SavedStateHandle,
         validator: (event: ParcerableEvent) -> Boolean
-    ) : super() {
-        this.validate = validator
+    ) {
+        this.validate = {
+            require(it is ParcerableEvent)
+            validator(it)
+        }
         this.savedStateKey = savedStateKey
         this.savedStateHandle = savedStateHandle
 
         // restore data.
-        this.value = savedStateHandle.get(savedStateKey)
+        UIHandler.postOrRun {
+            pendingEventData.value =
+                when (val saved = savedStateHandle.get<SavedPendingEvent>(savedStateKey)) {
+                    null -> null
+                    else -> PendingEvent(saved)
+                }
+        }
     }
 
-    constructor(validator: (event: ParcerableEvent) -> Boolean) : super() {
+    constructor(validator: (event: Event) -> Boolean) : super() {
         this.validate = validator
         this.savedStateKey = null
         this.savedStateHandle = null
     }
 
-    private val validate: (event: ParcerableEvent) -> Boolean
+    private val validate: (event: Event) -> Boolean
 
     /**
      *  for ViewModel save.
@@ -56,41 +70,31 @@ class PendingEventStream : LiveData<Parcelable> {
     internal val savedStateHandle: SavedStateHandle?
 
     @VisibleForTesting
-    internal var subject: PublishSubject<ParcerableEvent>? = null
+    internal var subject: PublishSubject<Event>? = null
 
-    /**
-     *  Pending object ref.
-     */
     @VisibleForTesting
-    internal val pending: PendingEvent?
-        get() {
-            val obj = this.value ?: return null
-            require(obj is PendingEvent) {
-                "Invalid type(${obj.javaClass.simpleName})"
-            }
-            return obj
-        }
-
-    override fun onActive() {
-        val pending = this.pending
-        this.value = null
-        subject = PublishSubject.create()
-        pending?.also {
-            for (event in it.pendingEvents) {
-                next(event)
+    internal val pendingEventData = object : MutableLiveData<PendingEvent>() {
+        override fun onActive() {
+            val pending = this.value
+            this.value = null
+            subject = PublishSubject.create()
+            pending?.also {
+                for (event in it.pendingEvents) {
+                    next(event)
+                }
             }
         }
-    }
 
-    override fun onInactive() {
-        subject?.onComplete()
-        subject = null
+        override fun onInactive() {
+            subject?.onComplete()
+            subject = null
+        }
     }
 
     /**
      *  Send or Pending next event.
      */
-    fun next(event: ParcerableEvent) {
+    fun next(event: Event) {
         UIHandler.post {
             nextNow(event)
         }
@@ -100,7 +104,7 @@ class PendingEventStream : LiveData<Parcelable> {
      *  Send or Pending next event.
      */
     @UiThread
-    fun nextNow(event: ParcerableEvent) {
+    fun nextNow(event: Event) {
         assertUIThread()
 
         require(validate(event)) {
@@ -108,33 +112,23 @@ class PendingEventStream : LiveData<Parcelable> {
         }
 
         when {
-            this.hasActiveObservers() -> {
+            pendingEventData.hasActiveObservers() -> {
                 subject!!.onNext(event)
             }
-            this.value == null -> {
-                this.value = PendingEvent(event)
+            pendingEventData.value == null -> {
+                pendingEventData.value = PendingEvent(event)
             }
             else -> {
-                this.value = (this.pending!!).append(event)
-            }
-        }
-    }
-
-    override fun setValue(value: Parcelable?) {
-        if (value != null) {
-            require(value is PendingEvent) {
-                "Invalid type(${value.javaClass.simpleName})"
+                pendingEventData.value = (pendingEventData.value!!).append(event)
             }
         }
 
         // save state.
         when {
             savedStateHandle != null && savedStateKey != null -> {
-                savedStateHandle.set(savedStateKey, value)
+                savedStateHandle.set(savedStateKey, pendingEventData.value?.toParcelable())
             }
         }
-
-        super.setValue(value)
     }
 
     /**
@@ -143,39 +137,65 @@ class PendingEventStream : LiveData<Parcelable> {
      */
     @CheckResult
     @UiThread
-    fun observable(): Observable<ParcerableEvent> {
+    fun observable(): Observable<Event> {
         assertUIThread()
 
-        this.observeForever { }
+        pendingEventData.observeForever { }
         return requireNotNull(subject) {
             "Invalid stream state"
         }
     }
 
     /**
-     *  Subscribe
+     *  Get observable with LifecycleOwner.
      */
     @CheckResult
     @UiThread
-    fun observable(owner: LifecycleOwner): Observable<ParcerableEvent> {
+    fun observable(owner: LifecycleOwner): Observable<Event> {
         assertUIThread()
-        this.observe(owner, Observer { })
+        pendingEventData.forceActiveAlive(owner)
         return requireNotNull(subject) {
             "Invalid stream state"
         }
     }
+
+    /**
+     *  Subscribe util.
+     */
+    @UiThread
+    fun subscribe(owner: LifecycleOwner, consumer: Consumer<Event>): Disposable {
+        return observable(owner)
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe(consumer)
+            .with(owner)
+    }
 }
 
-@Parcelize
 internal data class PendingEvent internal constructor(
-    internal val pendingEvents: List<ParcerableEvent>
-) : Parcelable {
+    val pendingEvents: List<Event>
+) {
 
-    internal constructor(event: ParcerableEvent) : this(listOf(event))
+    internal constructor(event: Event) : this(listOf(event))
 
-    internal fun append(event: ParcerableEvent): PendingEvent {
+    internal constructor(saved: SavedPendingEvent) : this(saved.pendingEvents)
+
+    internal fun append(event: Event): PendingEvent {
         val result = ArrayList(pendingEvents)
         result.add(event)
         return PendingEvent(result)
     }
+
+    /**
+     *  Convert to Saving Model.
+     */
+    internal fun toParcelable(): SavedPendingEvent {
+        return SavedPendingEvent(
+            this.pendingEvents.map { it as ParcerableEvent }
+        )
+    }
 }
+
+@Parcelize
+internal data class SavedPendingEvent internal constructor(
+    val pendingEvents: List<ParcerableEvent>
+) : Parcelable

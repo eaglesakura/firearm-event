@@ -24,7 +24,7 @@ class PendingEventStreamTest {
         assertNull(stream.subject)
         assertNull(stream.savedStateHandle)
         assertNull(stream.savedStateKey)
-        assertNull(stream.value)
+        assertNull(stream.pendingEventData.value)
     }
 
     @Test
@@ -56,18 +56,18 @@ class PendingEventStreamTest {
 
         withContext(Dispatchers.Main) {
             yield()
-            assertNotNull(stream.pending)
-            assertEquals(3, stream.pending!!.pendingEvents.size)
-            assertEquals(PENDING_EVENT_GET, stream.pending!!.pendingEvents[0])
-            assertEquals(PENDING_EVENT_SET, stream.pending!!.pendingEvents[1])
-            assertEquals(PENDING_EVENT_UPDATE, stream.pending!!.pendingEvents[2])
+            assertNotNull(stream.pendingEventData.value)
+            assertEquals(3, stream.pendingEventData.value!!.pendingEvents.size)
+            assertEquals(PENDING_EVENT_GET, stream.pendingEventData.value!!.pendingEvents[0])
+            assertEquals(PENDING_EVENT_SET, stream.pendingEventData.value!!.pendingEvents[1])
+            assertEquals(PENDING_EVENT_UPDATE, stream.pendingEventData.value!!.pendingEvents[2])
         }
 
         val activity = makeActivity()
         withContext(Dispatchers.Main) {
             val channel = stream.observable(activity).toChannel(Dispatchers.Main)
 
-            assertNull(stream.value)
+            assertNull(stream.pendingEventData.value)
             assertEquals(PENDING_EVENT_GET, channel.receive())
             assertEquals(PENDING_EVENT_SET, channel.receive())
             assertEquals(PENDING_EVENT_UPDATE, channel.receive())
