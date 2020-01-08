@@ -46,10 +46,10 @@ class PendingEventStream {
         // restore data.
         UIHandler.postOrRun {
             pendingEventData.value =
-                    when (val saved = savedStateHandle.get<SavedPendingEvent>(savedStateKey)) {
-                        null -> null
-                        else -> PendingEvent(saved)
-                    }
+                when (val saved = savedStateHandle.get<SavedPendingEvent>(savedStateKey)) {
+                    null -> null
+                    else -> PendingEvent(saved)
+                }
         }
     }
 
@@ -167,11 +167,19 @@ class PendingEventStream {
      *  Subscribe util.
      */
     @UiThread
-    fun subscribe(owner: LifecycleOwner, consumer: Consumer<Event>): Disposable {
+    fun subscribe(owner: LifecycleOwner, onNext: (event: Event) -> Unit): Disposable {
+        return this.subscribe(owner, Consumer { onNext(it) })
+    }
+
+    /**
+     *  Subscribe util.
+     */
+    @UiThread
+    fun subscribe(owner: LifecycleOwner, onNext: Consumer<Event>): Disposable {
         return observable(owner)
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(consumer)
-                .with(owner)
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe(onNext)
+            .with(owner)
     }
 
     /**
@@ -202,7 +210,7 @@ internal data class PendingEvent internal constructor(
      */
     internal fun toParcelable(): SavedPendingEvent {
         return SavedPendingEvent(
-                this.pendingEvents.map { it as ParcerableEvent }
+            this.pendingEvents.map { it as ParcerableEvent }
         )
     }
 }
