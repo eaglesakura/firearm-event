@@ -34,10 +34,10 @@ class PendingEventStream {
     constructor(
         savedStateKey: String,
         savedStateHandle: SavedStateHandle,
-        validator: (event: ParcerableEvent) -> Boolean
+        validator: (event: ParcelableEvent) -> Boolean
     ) {
         this.validate = {
-            require(it is ParcerableEvent)
+            require(it is ParcelableEvent)
             validator(it)
         }
         this.savedStateKey = savedStateKey
@@ -210,12 +210,12 @@ internal data class PendingEvent internal constructor(
      */
     internal fun toParcelable(): SavedPendingEvent {
         return SavedPendingEvent(
-            this.pendingEvents.map { it as ParcerableEvent }
+            this.pendingEvents.map { it as ParcelableEvent }
         )
     }
 }
 
 @Parcelize
 internal data class SavedPendingEvent internal constructor(
-    val pendingEvents: List<ParcerableEvent>
+    val pendingEvents: List<ParcelableEvent>
 ) : Parcelable

@@ -12,4 +12,7 @@ interface Event {
 /**
  *  can parcel event.
  */
-interface ParcerableEvent : Event, Parcelable
+interface ParcelableEvent : Event, Parcelable
+
+@Deprecated("This interface is typo", ReplaceWith("ParcelableEvent"))
+typealias ParcerableEvent = ParcelableEvent

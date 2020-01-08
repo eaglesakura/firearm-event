@@ -31,7 +31,7 @@ import kotlinx.android.parcel.Parcelize
  * }
  */
 @Parcelize
-class EventId(private val name: String) : ParcerableEvent {
+class EventId(private val name: String) : ParcelableEvent {
     override val id: Any
         get() = name
 
