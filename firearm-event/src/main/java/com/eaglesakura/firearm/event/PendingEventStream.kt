@@ -7,6 +7,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.lifecycleScope
 import com.eaglesakura.armyknife.android.extensions.UIHandler
 import com.eaglesakura.armyknife.android.extensions.assertUIThread
 import com.eaglesakura.armyknife.android.extensions.forceActiveAlive
@@ -169,6 +170,36 @@ class PendingEventStream {
     @UiThread
     fun subscribe(owner: LifecycleOwner, onNext: (event: Event) -> Unit): Disposable {
         return this.subscribe(owner, Consumer { onNext(it) })
+    }
+
+    /**
+     * Subscribe util.
+     */
+    @UiThread
+    fun subscribeWhenCreated(owner: LifecycleOwner, onNext: (event: Event) -> Unit): Disposable {
+        return subscribe(owner) {
+            owner.lifecycleScope.launchWhenCreated { onNext(it) }
+        }
+    }
+
+    /**
+     * Subscribe util.
+     */
+    @UiThread
+    fun subscribeWhenStarted(owner: LifecycleOwner, onNext: (event: Event) -> Unit): Disposable {
+        return subscribe(owner) {
+            owner.lifecycleScope.launchWhenStarted { onNext(it) }
+        }
+    }
+
+    /**
+     * Subscribe util.
+     */
+    @UiThread
+    fun subscribeWhenResumed(owner: LifecycleOwner, onNext: (event: Event) -> Unit): Disposable {
+        return subscribe(owner) {
+            owner.lifecycleScope.launchWhenResumed { onNext(it) }
+        }
     }
 
     /**
