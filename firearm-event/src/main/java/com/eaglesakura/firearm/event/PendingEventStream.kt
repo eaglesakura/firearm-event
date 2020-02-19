@@ -44,10 +44,11 @@ class PendingEventStream : Closeable {
         this.savedStateHandle = savedStateHandle
 
         // restore data.
-        pendingEventList = when (val saved = savedStateHandle.get<Array<ParcelableEvent>>(savedStateKey)) {
+        _pendingEventList = when (val saved = savedStateHandle.get<Array<ParcelableEvent>>(savedStateKey)) {
             null -> emptyList()
             else -> saved.toList()
         }
+        _mode = savedStateHandle.get<StreamMode>("$savedStateKey@mode") ?: StreamMode.Auto
     }
 
     /**
@@ -87,9 +88,6 @@ class PendingEventStream : Closeable {
         return this
     }
 
-    @VisibleForTesting
-    internal var mode: StreamMode = StreamMode.Auto
-
     private val validate: (event: Event) -> Boolean
 
     /**
@@ -108,6 +106,18 @@ class PendingEventStream : Closeable {
     internal val subject: PublishSubject<Event> = PublishSubject.create()
 
     private var _pendingEventList: List<Event> = listOf()
+
+    private var _mode: StreamMode = StreamMode.Auto
+
+    @VisibleForTesting
+    internal var mode: StreamMode
+        get() = _mode
+        set(value) {
+            if (savedStateHandle != null && savedStateKey != null) {
+                savedStateHandle.set("$savedStateKey@mode", value)
+            }
+            _mode = value
+        }
 
     @VisibleForTesting
     internal var pendingEventList: List<Event>
