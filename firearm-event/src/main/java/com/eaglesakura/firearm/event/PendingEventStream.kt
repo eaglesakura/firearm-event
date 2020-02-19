@@ -32,9 +32,9 @@ class PendingEventStream : Closeable {
      *  Stream for ViewModel.
      */
     constructor(
-            savedStateKey: String,
-            savedStateHandle: SavedStateHandle,
-            validator: (event: ParcelableEvent) -> Boolean
+        savedStateKey: String,
+        savedStateHandle: SavedStateHandle,
+        validator: (event: ParcelableEvent) -> Boolean
     ) {
         this.validate = {
             require(it is ParcelableEvent)
@@ -55,10 +55,10 @@ class PendingEventStream : Closeable {
      *  Stream for ViewModel.
      */
     constructor(
-            lifecycleOwner: LifecycleOwner,
-            savedStateKey: String,
-            savedStateHandle: SavedStateHandle,
-            validator: (event: ParcelableEvent) -> Boolean
+        lifecycleOwner: LifecycleOwner,
+        savedStateKey: String,
+        savedStateHandle: SavedStateHandle,
+        validator: (event: ParcelableEvent) -> Boolean
     ) : this(savedStateKey, savedStateHandle, validator) {
         autoClose(lifecycleOwner)
     }
@@ -194,6 +194,14 @@ class PendingEventStream : Closeable {
 
         pushBack(event)
         broadcast()
+    }
+
+    /**
+     * Sort pending events.
+     */
+    @UiThread
+    fun sortPendingEvents(comparator: Comparator<Event>) = lock.withLock {
+        this.pendingEventList = this.pendingEventList.sortedWith(comparator)
     }
 
     @AnyThread
