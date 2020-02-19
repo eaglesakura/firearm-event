@@ -1,6 +1,7 @@
 package com.eaglesakura.firearm.event
 
 import android.os.Parcelable
+import androidx.annotation.AnyThread
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.LifecycleOwner
@@ -21,6 +22,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import java.io.Closeable
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Event stream with suspend.
@@ -60,6 +63,8 @@ class PendingEventStream : Closeable {
     ) {
         autoClose(lifecycleOwner)
     }
+
+    private val lock = ReentrantLock()
 
     /**
      * Auto close this resource.
@@ -115,11 +120,27 @@ class PendingEventStream : Closeable {
         }
 
     /**
+     * remove Event object on returns true from lambda.
+     *
+     * e.g.)
+     * val event: PendingEventStream = ...
+     * event.removeIf {
+     *      it is ExampleEvent // remove "ExampleEvent" instance from pending list.
+     * }
+     */
+    @UiThread
+    fun removeIf(block: (event: Event) -> Boolean) = lock.withLock {
+        assertUIThread()
+        this.pendingEventList = this.pendingEventList.filter { !block(it) }
+    }
+
+    /**
      *  Send or Pending next event.
      */
     fun next(event: Event) {
+        pushBack(event)
         UIHandler.post {
-            nextNow(event)
+            broadcast()
         }
     }
 
@@ -130,6 +151,12 @@ class PendingEventStream : Closeable {
     fun nextNow(event: Event) {
         assertUIThread()
 
+        pushBack(event)
+        broadcast()
+    }
+
+    @AnyThread
+    private fun pushBack(event: Event) = lock.withLock {
         require(validate(event)) {
             "Invalid event='$event'"
         }
@@ -139,9 +166,6 @@ class PendingEventStream : Closeable {
             newList.add(event)
             newList
         }
-
-        // broadcast
-        broadcast()
     }
 
     @UiThread
@@ -152,18 +176,19 @@ class PendingEventStream : Closeable {
             return
         }
 
-        val pending = pendingEventList.toMutableList()
-        if (pending.isEmpty()) {
-            return
+        lock.withLock {
+            val pending = pendingEventList.toMutableList()
+            if (pending.isEmpty()) {
+                return
+            }
+            val next = pending.removeAt(0)
+
+            // save state.
+            pendingEventList = pending
+
+            // broadcast
+            subject.onNext(next)
         }
-        val next = pending.removeAt(0)
-
-        // save state.
-        pendingEventList = pending
-
-        // broadcast
-        subject.onNext(next)
-
         // re-run
         UIHandler.post {
             broadcast()
