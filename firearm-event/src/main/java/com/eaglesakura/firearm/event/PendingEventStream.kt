@@ -1,6 +1,5 @@
 package com.eaglesakura.firearm.event
 
-import android.os.Parcelable
 import androidx.annotation.AnyThread
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
@@ -17,7 +16,6 @@ import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
 import io.reactivex.functions.Consumer
 import io.reactivex.subjects.PublishSubject
-import kotlinx.android.parcel.Parcelize
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -50,6 +48,18 @@ class PendingEventStream : Closeable {
             null -> emptyList()
             else -> saved.toList()
         }
+    }
+
+    /**
+     *  Stream for ViewModel.
+     */
+    constructor(
+        lifecycleOwner: LifecycleOwner,
+        savedStateKey: String,
+        savedStateHandle: SavedStateHandle,
+        validator: (event: ParcelableEvent) -> Boolean
+    ) : this(savedStateKey, savedStateHandle, validator) {
+        autoClose(lifecycleOwner)
     }
 
     constructor(validator: (event: Event) -> Boolean) : super() {
@@ -302,37 +312,3 @@ class PendingEventStream : Closeable {
         Pause,
     }
 }
-
-internal data class PendingEvent internal constructor(
-    val pendingEvents: List<Event>
-) {
-
-    internal constructor() : this(emptyList())
-
-    internal constructor(event: Event) : this(listOf(event))
-
-    internal constructor(saved: SavedPendingEvent) : this(saved.pendingEvents)
-
-    val isEmpty: Boolean
-        get() = pendingEvents.isEmpty()
-
-    internal fun append(event: Event): PendingEvent {
-        val result = ArrayList(pendingEvents)
-        result.add(event)
-        return PendingEvent(result)
-    }
-
-    /**
-     *  Convert to Saving Model.
-     */
-    internal fun toParcelable(): SavedPendingEvent {
-        return SavedPendingEvent(
-                this.pendingEvents.map { it as ParcelableEvent }
-        )
-    }
-}
-
-@Parcelize
-internal data class SavedPendingEvent internal constructor(
-    val pendingEvents: List<ParcelableEvent>
-) : Parcelable
