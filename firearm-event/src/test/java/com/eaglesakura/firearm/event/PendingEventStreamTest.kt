@@ -32,8 +32,8 @@ class PendingEventStreamTest {
 
     @Test
     fun active_inactive() = compatibleBlockingTest {
-        val stream = PendingEventStream { true }
         val activity = makeActivity()
+        val stream = PendingEventStream(activity) { true }
 
         withContext(Dispatchers.Main) {
             val observable = stream.observable(activity)
@@ -43,9 +43,6 @@ class PendingEventStreamTest {
             if (ApplicationRuntime.runIn(ApplicationRuntime.RUNTIME_INSTRUMENTATION)) {
                 activity.finish()
                 delay(1000)
-
-                // closed stream
-                assertNull(stream.subject)
             }
         }
     }
@@ -79,8 +76,8 @@ class PendingEventStreamTest {
 
     @Test
     fun receive() = compatibleBlockingTest {
-        val stream = PendingEventStream { true }
         val activity = makeActivity()
+        val stream = PendingEventStream(activity) { true }
         withContext(Dispatchers.Main) {
             val channel = stream.testChannel(Dispatchers.Main)
 
