@@ -49,10 +49,10 @@ class PendingEventStream : Closeable {
         // restore data.
         UIHandler.postOrRun {
             pendingEventData.value =
-                when (val saved = savedStateHandle.get<SavedPendingEvent>(savedStateKey)) {
-                    null -> null
-                    else -> PendingEvent(saved)
-                }
+                    when (val saved = savedStateHandle.get<SavedPendingEvent>(savedStateKey)) {
+                        null -> null
+                        else -> PendingEvent(saved)
+                    }
         }
     }
 
@@ -63,7 +63,7 @@ class PendingEventStream : Closeable {
     }
 
     constructor(lifecycleOwner: LifecycleOwner, validator: (event: Event) -> Boolean) : this(
-        validator
+            validator
     ) {
         autoClose(lifecycleOwner)
     }
@@ -178,10 +178,8 @@ class PendingEventStream : Closeable {
     @UiThread
     fun pauseStream() {
         assertUIThread()
-        UIHandler.post {
-            this.mode = StreamMode.Pause
-            pauseStreamImpl()
-        }
+        this.mode = StreamMode.Pause
+        pauseStreamImpl()
     }
 
     /**
@@ -272,9 +270,9 @@ class PendingEventStream : Closeable {
     @UiThread
     fun subscribe(owner: LifecycleOwner, onNext: Consumer<Event>): Disposable {
         return observable(owner)
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe(onNext)
-            .with(owner)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(onNext)
+                .with(owner)
     }
 
     /**
@@ -320,7 +318,7 @@ internal data class PendingEvent internal constructor(
      */
     internal fun toParcelable(): SavedPendingEvent {
         return SavedPendingEvent(
-            this.pendingEvents.map { it as ParcelableEvent }
+                this.pendingEvents.map { it as ParcelableEvent }
         )
     }
 }

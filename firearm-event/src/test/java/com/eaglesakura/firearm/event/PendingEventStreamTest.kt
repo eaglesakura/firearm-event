@@ -85,6 +85,7 @@ class PendingEventStreamTest {
             val channel = stream.testChannel(Dispatchers.Main)
 
             stream.next(PENDING_EVENT_GET)
+            delay(1000)
             stream.pauseStream()
 
             stream.next(PENDING_EVENT_SET)
