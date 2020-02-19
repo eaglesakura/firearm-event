@@ -10,8 +10,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -21,7 +23,8 @@ class PendingEventStreamTest {
     @Test
     fun newInstance() = compatibleBlockingTest {
         val stream = PendingEventStream { true }
-        assertNull(stream.subject)
+
+        assertEquals(PendingEventStream.StreamMode.Auto, stream.mode)
         assertNull(stream.savedStateHandle)
         assertNull(stream.savedStateKey)
         assertNull(stream.pendingEventData.value)
@@ -79,13 +82,21 @@ class PendingEventStreamTest {
         val stream = PendingEventStream { true }
         val activity = makeActivity()
         withContext(Dispatchers.Main) {
-            val channel = stream.observable(activity).toChannel(Dispatchers.Main)
+            val channel = stream.testChannel(Dispatchers.Main)
 
             stream.next(PENDING_EVENT_GET)
+            stream.pauseStream()
+
             stream.next(PENDING_EVENT_SET)
             stream.next(PENDING_EVENT_UPDATE)
 
+            delay(1000)
+            assertFalse(channel.isEmpty)
             assertEquals(PENDING_EVENT_GET, channel.receive())
+            delay(1000)
+            assertTrue(channel.isEmpty)
+
+            stream.resumeStream()
             assertEquals(PENDING_EVENT_SET, channel.receive())
             assertEquals(PENDING_EVENT_UPDATE, channel.receive())
         }

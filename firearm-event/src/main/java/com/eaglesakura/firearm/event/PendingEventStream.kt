@@ -12,6 +12,7 @@ import com.eaglesakura.armyknife.android.extensions.UIHandler
 import com.eaglesakura.armyknife.android.extensions.assertUIThread
 import com.eaglesakura.armyknife.android.extensions.forceActiveAlive
 import com.eaglesakura.armyknife.android.extensions.postOrRun
+import com.eaglesakura.armyknife.android.extensions.registerFinalizer
 import com.eaglesakura.armyknife.android.reactivex.toChannel
 import com.eaglesakura.armyknife.android.reactivex.with
 import io.reactivex.Observable
@@ -23,11 +24,12 @@ import kotlinx.android.parcel.Parcelize
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import java.io.Closeable
 
 /**
  * Event stream with suspend.
  */
-class PendingEventStream {
+class PendingEventStream : Closeable {
 
     /**
      *  Stream for ViewModel.
@@ -60,6 +62,25 @@ class PendingEventStream {
         this.savedStateHandle = null
     }
 
+    constructor(lifecycleOwner: LifecycleOwner, validator: (event: Event) -> Boolean) : this(
+        validator
+    ) {
+        autoClose(lifecycleOwner)
+    }
+
+    /**
+     * Auto close this resource.
+     */
+    fun autoClose(lifecycleOwner: LifecycleOwner): PendingEventStream {
+        lifecycleOwner.registerFinalizer {
+            close()
+        }
+        return this
+    }
+
+    @VisibleForTesting
+    internal var mode: StreamMode = StreamMode.Auto
+
     private val validate: (event: Event) -> Boolean
 
     /**
@@ -75,26 +96,41 @@ class PendingEventStream {
     internal val savedStateHandle: SavedStateHandle?
 
     @VisibleForTesting
-    internal var subject: PublishSubject<Event>? = null
+    internal val subject: PublishSubject<Event> = PublishSubject.create()
 
     @VisibleForTesting
     internal val pendingEventData = object : MutableLiveData<PendingEvent>() {
         override fun onActive() {
-            val pending = this.value
-            this.value = null
-            subject = PublishSubject.create()
-            pending?.also {
-                for (event in it.pendingEvents) {
-                    next(event)
-                }
-            }
+            resumeStreamImpl()
         }
 
         override fun onInactive() {
-            subject?.onComplete()
-            subject = null
+            pauseStreamImpl()
         }
     }
+
+    private fun pauseStreamImpl() {
+    }
+
+    private fun resumeStreamImpl() {
+        val pending = pendingEventData.value
+        pendingEventData.value = null
+        pending?.also {
+            for (event in it.pendingEvents) {
+                next(event)
+            }
+        }
+    }
+
+    /**
+     * check this stream is active.
+     */
+    val isActive: Boolean
+        get() = when {
+            mode == StreamMode.Pause -> false
+            !pendingEventData.hasActiveObservers() -> false
+            else -> true
+        }
 
     /**
      *  Send or Pending next event.
@@ -117,8 +153,8 @@ class PendingEventStream {
         }
 
         when {
-            pendingEventData.hasActiveObservers() -> {
-                subject!!.onNext(event)
+            mode == StreamMode.Auto && pendingEventData.hasActiveObservers() -> {
+                subject.onNext(event)
             }
             pendingEventData.value == null -> {
                 pendingEventData.value = PendingEvent(event)
@@ -133,6 +169,30 @@ class PendingEventStream {
             savedStateHandle != null && savedStateKey != null -> {
                 savedStateHandle.set(savedStateKey, pendingEventData.value?.toParcelable())
             }
+        }
+    }
+
+    /**
+     * Pause this stream.
+     */
+    @UiThread
+    fun pauseStream() {
+        assertUIThread()
+        UIHandler.post {
+            this.mode = StreamMode.Pause
+            pauseStreamImpl()
+        }
+    }
+
+    /**
+     * Resume this stream.
+     */
+    @UiThread
+    fun resumeStream() {
+        assertUIThread()
+        UIHandler.post {
+            this.mode = StreamMode.Auto
+            resumeStreamImpl()
         }
     }
 
@@ -202,6 +262,10 @@ class PendingEventStream {
         }
     }
 
+    override fun close() {
+        subject.onComplete()
+    }
+
     /**
      *  Subscribe util.
      */
@@ -219,6 +283,21 @@ class PendingEventStream {
     @UiThread
     fun testChannel(dispatcher: CoroutineDispatcher = Dispatchers.Main): Channel<Event> {
         return observable().toChannel(dispatcher)
+    }
+
+    /**
+     * Stream mode.
+     */
+    internal enum class StreamMode {
+        /**
+         * Auto pending, Auto resume.
+         */
+        Auto,
+
+        /**
+         * Force pending.
+         */
+        Pause,
     }
 }
 
