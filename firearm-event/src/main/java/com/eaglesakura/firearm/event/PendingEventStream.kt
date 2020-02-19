@@ -32,9 +32,9 @@ class PendingEventStream : Closeable {
      *  Stream for ViewModel.
      */
     constructor(
-        savedStateKey: String,
-        savedStateHandle: SavedStateHandle,
-        validator: (event: ParcelableEvent) -> Boolean
+            savedStateKey: String,
+            savedStateHandle: SavedStateHandle,
+            validator: (event: ParcelableEvent) -> Boolean
     ) {
         this.validate = {
             require(it is ParcelableEvent)
@@ -55,10 +55,10 @@ class PendingEventStream : Closeable {
      *  Stream for ViewModel.
      */
     constructor(
-        lifecycleOwner: LifecycleOwner,
-        savedStateKey: String,
-        savedStateHandle: SavedStateHandle,
-        validator: (event: ParcelableEvent) -> Boolean
+            lifecycleOwner: LifecycleOwner,
+            savedStateKey: String,
+            savedStateHandle: SavedStateHandle,
+            validator: (event: ParcelableEvent) -> Boolean
     ) : this(savedStateKey, savedStateHandle, validator) {
         autoClose(lifecycleOwner)
     }
@@ -155,6 +155,27 @@ class PendingEventStream : Closeable {
     }
 
     /**
+     * Interrupt this event.
+     */
+    fun interrupt(event: Event) {
+        pushFront(event)
+        UIHandler.post {
+            broadcast()
+        }
+    }
+
+    /**
+     * Interrupt and force broadcast this event.
+     */
+    @UiThread
+    fun interruptNow(event: Event) {
+        assertUIThread()
+
+        pushFront(event)
+        broadcast()
+    }
+
+    /**
      *  Send or Pending next event.
      */
     fun next(event: Event) {
@@ -173,6 +194,19 @@ class PendingEventStream : Closeable {
 
         pushBack(event)
         broadcast()
+    }
+
+    @AnyThread
+    private fun pushFront(event: Event) = lock.withLock {
+        require(validate(event)) {
+            "Invalid event='$event'"
+        }
+
+        this.pendingEventList = this.pendingEventList.let {
+            val newList = it.toMutableList()
+            newList.add(0, event)
+            newList
+        }
     }
 
     @AnyThread
