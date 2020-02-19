@@ -4,14 +4,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.eaglesakura.armyknife.android.ApplicationRuntime
 import com.eaglesakura.armyknife.android.junit4.extensions.compatibleBlockingTest
 import com.eaglesakura.armyknife.android.junit4.extensions.makeActivity
-import com.eaglesakura.armyknife.android.reactivex.toChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -27,7 +25,7 @@ class PendingEventStreamTest {
         assertEquals(PendingEventStream.StreamMode.Auto, stream.mode)
         assertNull(stream.savedStateHandle)
         assertNull(stream.savedStateKey)
-        assertNull(stream.pendingEventData.value)
+        assertTrue(stream.pendingEventList.isEmpty())
     }
 
     @Test
@@ -36,13 +34,14 @@ class PendingEventStreamTest {
         val stream = PendingEventStream(activity) { true }
 
         withContext(Dispatchers.Main) {
-            val observable = stream.observable(activity)
-            assertNotNull(observable)
-            assertNotNull(stream.subject)
+            val channel = stream.testChannel()
+            assertTrue(stream.isActive)
 
             if (ApplicationRuntime.runIn(ApplicationRuntime.RUNTIME_INSTRUMENTATION)) {
                 activity.finish()
                 delay(1000)
+
+                assertFalse(stream.isActive)
             }
         }
     }
@@ -56,18 +55,17 @@ class PendingEventStreamTest {
 
         withContext(Dispatchers.Main) {
             yield()
-            assertNotNull(stream.pendingEventData.value)
-            assertEquals(3, stream.pendingEventData.value!!.pendingEvents.size)
-            assertEquals(PENDING_EVENT_GET, stream.pendingEventData.value!!.pendingEvents[0])
-            assertEquals(PENDING_EVENT_SET, stream.pendingEventData.value!!.pendingEvents[1])
-            assertEquals(PENDING_EVENT_UPDATE, stream.pendingEventData.value!!.pendingEvents[2])
+            assertEquals(3, stream.pendingEventList.size)
+            assertEquals(PENDING_EVENT_GET, stream.pendingEventList[0])
+            assertEquals(PENDING_EVENT_SET, stream.pendingEventList[1])
+            assertEquals(PENDING_EVENT_UPDATE, stream.pendingEventList[2])
         }
 
         val activity = makeActivity()
         withContext(Dispatchers.Main) {
-            val channel = stream.observable(activity).toChannel(Dispatchers.Main)
-
-            assertNull(stream.pendingEventData.value)
+            val channel = stream.testChannel(Dispatchers.Main)
+            delay(1000)
+            assertEquals(0, stream.pendingEventList.size)
             assertEquals(PENDING_EVENT_GET, channel.receive())
             assertEquals(PENDING_EVENT_SET, channel.receive())
             assertEquals(PENDING_EVENT_UPDATE, channel.receive())
@@ -103,9 +101,7 @@ class PendingEventStreamTest {
     @Test
     fun receive_forever() = compatibleBlockingTest {
         val stream = PendingEventStream { true }
-        val channel = withContext(Dispatchers.Main) {
-            stream.observable().toChannel(Dispatchers.Main)
-        }
+        val channel = stream.testChannel(Dispatchers.Main)
         stream.next(PENDING_EVENT_GET)
         stream.next(PENDING_EVENT_SET)
         stream.next(PENDING_EVENT_UPDATE)

@@ -1,21 +1,17 @@
 package com.eaglesakura.firearm.event
 
 import android.os.Parcelable
-import androidx.annotation.CheckResult
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.lifecycleScope
 import com.eaglesakura.armyknife.android.extensions.UIHandler
 import com.eaglesakura.armyknife.android.extensions.assertUIThread
-import com.eaglesakura.armyknife.android.extensions.forceActiveAlive
 import com.eaglesakura.armyknife.android.extensions.postOrRun
 import com.eaglesakura.armyknife.android.extensions.registerFinalizer
 import com.eaglesakura.armyknife.android.reactivex.toChannel
 import com.eaglesakura.armyknife.android.reactivex.with
-import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
 import io.reactivex.functions.Consumer
@@ -47,12 +43,9 @@ class PendingEventStream : Closeable {
         this.savedStateHandle = savedStateHandle
 
         // restore data.
-        UIHandler.postOrRun {
-            pendingEventData.value =
-                    when (val saved = savedStateHandle.get<SavedPendingEvent>(savedStateKey)) {
-                        null -> null
-                        else -> PendingEvent(saved)
-                    }
+        pendingEventList = when (val saved = savedStateHandle.get<Array<ParcelableEvent>>(savedStateKey)) {
+            null -> emptyList()
+            else -> saved.toList()
         }
     }
 
@@ -71,6 +64,7 @@ class PendingEventStream : Closeable {
     /**
      * Auto close this resource.
      */
+    @Suppress("MemberVisibilityCanBePrivate")
     fun autoClose(lifecycleOwner: LifecycleOwner): PendingEventStream {
         lifecycleOwner.registerFinalizer {
             close()
@@ -98,29 +92,17 @@ class PendingEventStream : Closeable {
     @VisibleForTesting
     internal val subject: PublishSubject<Event> = PublishSubject.create()
 
+    private var _pendingEventList: List<Event> = listOf()
+
     @VisibleForTesting
-    internal val pendingEventData = object : MutableLiveData<PendingEvent>() {
-        override fun onActive() {
-            resumeStreamImpl()
-        }
-
-        override fun onInactive() {
-            pauseStreamImpl()
-        }
-    }
-
-    private fun pauseStreamImpl() {
-    }
-
-    private fun resumeStreamImpl() {
-        val pending = pendingEventData.value
-        pendingEventData.value = null
-        pending?.also {
-            for (event in it.pendingEvents) {
-                next(event)
+    internal var pendingEventList: List<Event>
+        get() = _pendingEventList
+        set(value) {
+            if (savedStateHandle != null && savedStateKey != null) {
+                savedStateHandle.set(savedStateKey, value.filterIsInstance<ParcelableEvent>().toTypedArray())
             }
+            _pendingEventList = value
         }
-    }
 
     /**
      * check this stream is active.
@@ -128,7 +110,7 @@ class PendingEventStream : Closeable {
     val isActive: Boolean
         get() = when {
             mode == StreamMode.Pause -> false
-            !pendingEventData.hasActiveObservers() -> false
+            !subject.hasObservers() -> false
             else -> true
         }
 
@@ -152,23 +134,39 @@ class PendingEventStream : Closeable {
             "Invalid event='$event'"
         }
 
-        when {
-            mode == StreamMode.Auto && pendingEventData.hasActiveObservers() -> {
-                subject.onNext(event)
-            }
-            pendingEventData.value == null -> {
-                pendingEventData.value = PendingEvent(event)
-            }
-            else -> {
-                pendingEventData.value = (pendingEventData.value!!).append(event)
-            }
+        this.pendingEventList = this.pendingEventList.let {
+            val newList = it.toMutableList()
+            newList.add(event)
+            newList
         }
 
+        // broadcast
+        broadcast()
+    }
+
+    @UiThread
+    private fun broadcast() {
+        assertUIThread()
+
+        if (!isActive) {
+            return
+        }
+
+        val pending = pendingEventList.toMutableList()
+        if (pending.isEmpty()) {
+            return
+        }
+        val next = pending.removeAt(0)
+
         // save state.
-        when {
-            savedStateHandle != null && savedStateKey != null -> {
-                savedStateHandle.set(savedStateKey, pendingEventData.value?.toParcelable())
-            }
+        pendingEventList = pending
+
+        // broadcast
+        subject.onNext(next)
+
+        // re-run
+        UIHandler.post {
+            broadcast()
         }
     }
 
@@ -179,7 +177,6 @@ class PendingEventStream : Closeable {
     fun pauseStream() {
         assertUIThread()
         this.mode = StreamMode.Pause
-        pauseStreamImpl()
     }
 
     /**
@@ -188,37 +185,9 @@ class PendingEventStream : Closeable {
     @UiThread
     fun resumeStream() {
         assertUIThread()
+        this.mode = StreamMode.Auto
         UIHandler.post {
-            this.mode = StreamMode.Auto
-            resumeStreamImpl()
-        }
-    }
-
-    /**
-     *  Get observable with LifecycleOwner.
-     */
-    @CheckResult
-    @UiThread
-    fun observable(owner: LifecycleOwner): Observable<Event> {
-        assertUIThread()
-        pendingEventData.forceActiveAlive(owner)
-        return requireNotNull(subject) {
-            "Invalid stream state"
-        }
-    }
-
-    /**
-     *  Subscribe without Lifecycle.
-     *  This function CAN'T close subject.
-     */
-    @CheckResult
-    @UiThread
-    fun observable(): Observable<Event> {
-        assertUIThread()
-
-        pendingEventData.observeForever { }
-        return requireNotNull(subject) {
-            "Invalid stream state"
+            broadcast()
         }
     }
 
@@ -269,10 +238,14 @@ class PendingEventStream : Closeable {
      */
     @UiThread
     fun subscribe(owner: LifecycleOwner, onNext: Consumer<Event>): Disposable {
-        return observable(owner)
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(onNext)
-                .with(owner)
+        assertUIThread()
+        try {
+            return subject.observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(onNext)
+                    .with(owner)
+        } finally {
+            broadcast()
+        }
     }
 
     /**
@@ -280,7 +253,13 @@ class PendingEventStream : Closeable {
      */
     @UiThread
     fun testChannel(dispatcher: CoroutineDispatcher = Dispatchers.Main): Channel<Event> {
-        return observable().toChannel(dispatcher)
+        try {
+            return subject.observeOn(AndroidSchedulers.mainThread()).toChannel(dispatcher)
+        } finally {
+            UIHandler.postOrRun {
+                broadcast()
+            }
+        }
     }
 
     /**
@@ -303,9 +282,14 @@ internal data class PendingEvent internal constructor(
     val pendingEvents: List<Event>
 ) {
 
+    internal constructor() : this(emptyList())
+
     internal constructor(event: Event) : this(listOf(event))
 
     internal constructor(saved: SavedPendingEvent) : this(saved.pendingEvents)
+
+    val isEmpty: Boolean
+        get() = pendingEvents.isEmpty()
 
     internal fun append(event: Event): PendingEvent {
         val result = ArrayList(pendingEvents)
