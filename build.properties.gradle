@@ -1,0 +1,13 @@
+// Project settings.
+ext {
+    artifact.base_version = "1.4"
+    artifact.base_group = "com.eaglesakura.firearm"
+    artifact.dynamic_group_id = true
+
+    bintray_configs.user = "eaglesakura"
+    bintray_configs.labels = ["kotlin", "android"]
+    bintray_configs.vcs_url = "https://github.com/eaglesakura/${rootProject.name}"
+    bintray_configs.repository_name = "maven"
+    bintray_configs.issues_url = "${bintray_configs.vcs_url}/issues"
+    bintray_configs.licenses = ["MIT"]
+}

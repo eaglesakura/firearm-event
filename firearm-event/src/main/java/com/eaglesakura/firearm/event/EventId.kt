@@ -1,6 +1,6 @@
 package com.eaglesakura.firearm.event
 
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 
 /**
  * "EventId" is stream-item for RxStream<Event>(alias to EventStream).
