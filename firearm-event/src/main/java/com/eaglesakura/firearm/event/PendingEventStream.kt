@@ -16,12 +16,12 @@ import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
 import io.reactivex.functions.Consumer
 import io.reactivex.subjects.PublishSubject
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
 import java.io.Closeable
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 
 /**
  * Event stream with suspend.
@@ -70,7 +70,7 @@ class PendingEventStream : Closeable {
     }
 
     constructor(lifecycleOwner: LifecycleOwner, validator: (event: Event) -> Boolean) : this(
-            validator
+        validator
     ) {
         autoClose(lifecycleOwner)
     }
@@ -328,8 +328,8 @@ class PendingEventStream : Closeable {
         assertUIThread()
         try {
             return subject.observeOn(AndroidSchedulers.mainThread())
-                    .subscribe(onNext)
-                    .with(owner)
+                .subscribe(onNext)
+                .with(owner)
         } finally {
             broadcast()
         }
