@@ -23,25 +23,25 @@ import kotlinx.coroutines.channels.Channel
  * EventStream use to event or snackbar-data or such one-shot data.
  * Port from: https://github.com/eaglesakura/armyknife-reactivex
  */
-class EventStream<T : Event> private constructor(
-    private val subject: Subject<T>,
-    @Suppress("MemberVisibilityCanBePrivate") val observable: Observable<T>,
-    private val validator: ((T) -> Boolean)
+class EventStream private constructor(
+    private val subject: Subject<Event>,
+    @Suppress("MemberVisibilityCanBePrivate") val observable: Observable<Event>,
+    private val validator: ((Event) -> Boolean)
 ) {
-    constructor(subject: Subject<T>, validator: (T) -> Boolean) : this(
+    constructor(subject: Subject<Event>, validator: (Event) -> Boolean) : this(
         subject,
         subject.observeOn(AndroidSchedulers.mainThread()),
         validator
     )
 
     @Suppress("unused")
-    constructor(validator: (T) -> Boolean) : this(PublishSubject.create(), validator)
+    constructor(validator: (Event) -> Boolean) : this(PublishSubject.create(), validator)
 
     /**
      * Post new value.
      * Can run on any-thread.
      */
-    fun next(value: T) {
+    fun next(value: Event) {
         if (!validator(value)) {
             throw IllegalArgumentException("Value is invalid[$value]")
         }
@@ -55,7 +55,7 @@ class EventStream<T : Event> private constructor(
      * You should not call Disposable.dispose() method.
      */
     @Suppress("unused")
-    fun toLiveData(): LiveData<T> {
+    fun toLiveData(): LiveData<Event> {
         return observable.toLiveData()
     }
 
@@ -73,7 +73,7 @@ class EventStream<T : Event> private constructor(
      */
     @Suppress("unused")
     @CheckResult
-    fun toChannel(dispatcher: CoroutineDispatcher = Dispatchers.Main): Channel<T> {
+    fun toChannel(dispatcher: CoroutineDispatcher = Dispatchers.Main): Channel<Event> {
         return observable.toChannel(dispatcher)
     }
 
@@ -81,41 +81,41 @@ class EventStream<T : Event> private constructor(
      * Subscribe by reactivex.Observer
      */
     @Suppress("unused")
-    fun subscribe(observer: io.reactivex.Observer<T>) {
+    fun subscribe(observer: io.reactivex.Observer<Event>) {
         return observable.subscribe(observer)
     }
 
     @Suppress("MemberVisibilityCanBePrivate")
-    fun subscribe(observer: (value: T) -> Unit): Disposable {
+    fun subscribe(observer: (value: Event) -> Unit): Disposable {
         return observable.subscribe {
             observer(it)
         }
     }
 
     @Suppress("MemberVisibilityCanBePrivate", "unused")
-    fun subscribe(lifecycle: Lifecycle, observer: (value: T) -> Unit) {
+    fun subscribe(lifecycle: Lifecycle, observer: (value: Event) -> Unit) {
         subscribe(observer).with(lifecycle)
     }
 
     @Suppress("MemberVisibilityCanBePrivate")
-    fun subscribe(observer: Observer<T>): Disposable {
+    fun subscribe(observer: Observer<Event>): Disposable {
         return observable.subscribe {
             observer.onChanged(it)
         }
     }
 
     @Suppress("MemberVisibilityCanBePrivate", "unused")
-    fun subscribe(lifecycle: Lifecycle, observer: Observer<T>) {
+    fun subscribe(lifecycle: Lifecycle, observer: Observer<Event>) {
         subscribe(observer).with(lifecycle)
     }
 
     @Suppress("unused")
-    fun subscribe(owner: LifecycleOwner, observer: Observer<T>) {
+    fun subscribe(owner: LifecycleOwner, observer: Observer<Event>) {
         subscribe(owner.lifecycle, observer)
     }
 
     @Suppress("unused")
-    fun subscribe(owner: LifecycleOwner, observer: (value: T) -> Unit) {
+    fun subscribe(owner: LifecycleOwner, observer: (value: Event) -> Unit) {
         subscribe(owner.lifecycle, Observer { observer(it) })
     }
 }
