@@ -1,5 +1,6 @@
 package com.eaglesakura.firearm.event
 
+import android.os.Parcelable
 import androidx.annotation.AnyThread
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
@@ -44,10 +45,7 @@ class PendingEventStream : Closeable {
         this.savedStateHandle = savedStateHandle
 
         // restore data.
-        _pendingEventList = when (val saved = savedStateHandle.get<Array<ParcelableEvent>>(savedStateKey)) {
-            null -> emptyList()
-            else -> saved.toList()
-        }
+        _pendingEventList = savedStateHandle.getEvents(savedStateKey)
         _mode = savedStateHandle.get<StreamMode>("$savedStateKey@mode") ?: StreamMode.Auto
     }
 
@@ -124,7 +122,10 @@ class PendingEventStream : Closeable {
         get() = _pendingEventList
         set(value) {
             if (savedStateHandle != null && savedStateKey != null) {
-                savedStateHandle.set(savedStateKey, value.filterIsInstance<ParcelableEvent>().toTypedArray())
+                savedStateHandle.setEvents(
+                    savedStateKey,
+                    value.filterIsInstance<ParcelableEvent>()
+                )
             }
             _pendingEventList = value
         }
@@ -362,5 +363,20 @@ class PendingEventStream : Closeable {
          * Force pending.
          */
         Pause,
+    }
+
+    private fun SavedStateHandle.setEvents(key: String, events: List<ParcelableEvent>) {
+        this.set(
+            key,
+            @Suppress("USELESS_CAST")
+            events.map { it as Parcelable }
+                .toTypedArray()
+        )
+    }
+
+    private fun SavedStateHandle.getEvents(key: String): List<ParcelableEvent> {
+        return this.get<Array<Parcelable>>(key)
+            ?.map { it as ParcelableEvent }
+            ?.toList() ?: emptyList()
     }
 }
