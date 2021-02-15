@@ -27,6 +27,7 @@ import kotlinx.coroutines.channels.Channel
 /**
  * Event stream with suspend.
  */
+@Deprecated("https://github.com/eaglesakura/eventstream")
 class PendingEventStream : Closeable {
 
     /**

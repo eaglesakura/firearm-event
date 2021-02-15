@@ -5,6 +5,7 @@ import android.os.Parcelable
 /**
  * Any event(Error, Data Found, or such event) object.
  */
+@Deprecated("https://github.com/eaglesakura/eventstream")
 interface Event {
     val id: Any
 }
@@ -12,7 +13,8 @@ interface Event {
 /**
  *  can parcel event.
  */
+@Deprecated("https://github.com/eaglesakura/eventstream")
 interface ParcelableEvent : Event, Parcelable
 
-@Deprecated("This interface is typo", ReplaceWith("ParcelableEvent"))
+@Deprecated("https://github.com/eaglesakura/eventstream")
 typealias ParcerableEvent = ParcelableEvent

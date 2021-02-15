@@ -30,6 +30,7 @@ import kotlinx.parcelize.Parcelize
  *      }
  * }
  */
+@Deprecated("https://github.com/eaglesakura/eventstream")
 @Parcelize
 class EventId(private val name: String) : ParcelableEvent {
     override val id: Any

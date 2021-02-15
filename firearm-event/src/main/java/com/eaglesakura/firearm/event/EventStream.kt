@@ -23,6 +23,7 @@ import kotlinx.coroutines.channels.Channel
  * EventStream use to event or snackbar-data or such one-shot data.
  * Port from: https://github.com/eaglesakura/armyknife-reactivex
  */
+@Deprecated("https://github.com/eaglesakura/eventstream")
 class EventStream private constructor(
     private val subject: Subject<Event>,
     @Suppress("MemberVisibilityCanBePrivate") val observable: Observable<Event>,
